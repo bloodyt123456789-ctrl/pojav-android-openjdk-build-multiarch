@@ -1,3 +1,4 @@
+
 name: Build OpenJDK 17 for Android and iOS
 
 on:
@@ -5,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-   contents: write
+  contents: write
 
 jobs:
   build_android:
@@ -15,13 +16,14 @@ jobs:
         version: [17, 21]
       fail-fast: false
 
-    name: "Build Java ${{ matrix.version }} for Android ${{matrix.arch}}"
+    name: "Build Java ${{ matrix.version }} for Android ${{ matrix.arch }}"
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: set up JDK 1.${{ matrix.version }}
+      - name: Set up JDK ${{ matrix.version }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.version }}
@@ -33,25 +35,30 @@ jobs:
           sudo apt -y install autoconf python3 python-is-python3 unzip zip systemtap-sdt-dev libxtst-dev libasound2-dev libelf-dev libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev libxrender-dev libxtst-dev libxt-dev
 
       - name: Build with CI build script
-        run: export TARGET_VERSION=${{ matrix.version }} && bash "1_ci_build_arch_${{matrix.arch}}.sh"
+        run: |
+          export TARGET_VERSION=${{ matrix.version }}
+          bash "1_ci_build_arch_${{ matrix.arch }}.sh"
 
       - name: Upload JDK build output
         uses: actions/upload-artifact@v4
         with:
-          name: "jdk${{ matrix.version }}-${{matrix.arch}}"
+          name: "jdk${{ matrix.version }}-${{ matrix.arch }}"
           path: jdk${{ matrix.version }}*.tar.xz
+          if-no-files-found: error
 
       - name: Upload JRE build output
         uses: actions/upload-artifact@v4
         with:
-          name: "jre${{ matrix.version }}-${{matrix.arch}}"
+          name: "jre${{ matrix.version }}-${{ matrix.arch }}"
           path: jre${{ matrix.version }}*.tar.xz
+          if-no-files-found: error
 
       - name: Upload JRE debuginfo build output
         uses: actions/upload-artifact@v4
         with:
-          name: "jre${{ matrix.version }}-debuginfo-${{matrix.arch}}"
+          name: "jre${{ matrix.version }}-debuginfo-${{ matrix.arch }}"
           path: dizout
+          if-no-files-found: error
 
   pojav:
     needs: build_android
@@ -60,32 +67,33 @@ jobs:
       matrix:
         version: [17, 21]
       fail-fast: false
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Install zip
         run: sudo apt -y install zip
 
-      - name: Get jre${{ matrix.version }}-aarch32
+      - name: Get jre aarch32
         uses: actions/download-artifact@v4
         with:
           name: jre${{ matrix.version }}-aarch32
           path: pojav
 
-      - name: Get jre${{ matrix.version }}-aarch64
+      - name: Get jre aarch64
         uses: actions/download-artifact@v4
         with:
           name: jre${{ matrix.version }}-aarch64
           path: pojav
 
-      - name: Get jre${{ matrix.version }}-x86
+      - name: Get jre x86
         uses: actions/download-artifact@v4
         with:
           name: jre${{ matrix.version }}-x86
           path: pojav
 
-      - name: Get jre${{ matrix.version }}-x86_64
+      - name: Get jre x86_64
         uses: actions/download-artifact@v4
         with:
           name: jre${{ matrix.version }}-x86_64
@@ -93,8 +101,17 @@ jobs:
 
       - name: Repack JRE
         run: |
-          export TARGET_VERSION=${{ matrix.version }} && bash "9_repackjre.sh" $GITHUB_WORKSPACE/pojav $GITHUB_WORKSPACE/pojav/jre${{ matrix.version }}-pojav
-          zip -j -r $GITHUB_WORKSPACE/jre${{ matrix.version }}-pojav.zip $GITHUB_WORKSPACE/pojav/jre${{ matrix.version }}-pojav/
+          export TARGET_VERSION=${{ matrix.version }}
+          bash "9_repackjre.sh" "$GITHUB_WORKSPACE/pojav" "$GITHUB_WORKSPACE/pojav/jre${{ matrix.version }}-pojav"
+          zip -j -r "$GITHUB_WORKSPACE/jre${{ matrix.version }}-pojav.zip" "$GITHUB_WORKSPACE/pojav/jre${{ matrix.version }}-pojav/"
+
+      - name: Upload Pojav JRE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jre${{ matrix.version }}-pojav
+          path: jre${{ matrix.version }}-pojav.zip
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Update release
         uses: svenstaro/upload-release-action@2.11.2
@@ -103,3 +120,4 @@ jobs:
           file: ./jre${{ matrix.version }}-pojav.zip
           overwrite: true
           tag: rolling
+          
